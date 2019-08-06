@@ -1,47 +1,38 @@
 #!/usr/bin/python
-
-from __future__ import print_function
+"""
+Similar to Run2 removing cm stations adding stations KHMB
+generating more templates
+""" 
 import time
-import os, sys, glob
+import os, sys, glob, shutil
 
-import string
 import numpy as np
-import shutil
 import pickle
-import obspy
 
 from obspy.core import read, UTCDateTime, Stream, Trace, trace
-from obspy.core.event import read_events 
 from obspy.signal.filter import bandpass
-from obspy.core.event import Catalog, Event, Magnitude, Origin, Pick, Arrival, WaveformStreamID, Comment, CreationInfo, ResourceIdentifier
+from obspy.core.event import read_events, Catalog, Event, Magnitude, Origin, Pick, Arrival, WaveformStreamID, Comment, CreationInfo, ResourceIdentifier
 
-#sys.path.append('/home/hshaddox/EQcorrscan/EQcorrscan-0.1.6/eqcorrscan/utils')
 
 from multiprocessing import cpu_count
-from eqcorrscan.utils import pre_processing, catalog_utils
-from eqcorrscan.utils import plotting
-from datetime import datetime, date
+from eqcorrscan.utils import pre_processing, catalog_utils, plotting
 from eqcorrscan.utils.plotting import pretty_template_plot
 import matplotlib.pyplot as plt
-from collections import Counter
-from eqcorrscan.core import template_gen, match_filter, lag_calc
+from eqcorrscan.core import template_gen
 
+init_time = time.time()
+plt.close('all')
+plt.ioff() #prevents plots pop ups
 
-## 1. CREATE A CATALOG OF EVENTS ON DAY OF INTEREST FROM ANTELOPE DATABASE 
-
+# =============================================================================
+# ## 1. CREATE A CATALOG OF EVENTS ON DAY OF INTEREST FROM ANTELOPE DATABASE 
+# =============================================================================
 print("CREATING DATABASE EVENT CATALOG") 
 
-#Create list of event IDs to be used as templates. Will use to loop through all events later and select only cluster events. 
-events_clust = [1191, 1287, 1812, 1328, 1428, 1429, 1390, 1190, 1307, 1289, 
-                1365, 1366, 1367, 1186, 1185, 1163, 1153, 1152, 1151] #original NC_events used
-# assign events to list
-events_clust = []
 with open("/auto/proj/Cascadia/EQcorrscan/CM04Cluster/evid_greatest_M.txt") as file: #with statement auto closes txtfile
-    for line in file:
-        line = line.strip() 
-        events_clust.append(line)
+    events_clust = [line.strip() for line in file] # assign events to list
 
-##CREATE CATALOG FROM UCSC ANTELOPE EVENTS 
+##CREATE CATALOG OF TEMPLATES FROM ANTELOPE EVENTS 
 out=pickle.load(open('all_event_arrivals_6.28.2019.pkl','rb')) #dictionary of picks
 out_3=[] # list of lists of pick informations
 
@@ -57,9 +48,8 @@ for ev in events_clust:
             if str(out[i][0]) == str(ev):
                 out_3.append(out[i])
 
+
 db_catalog = Catalog() # start empty catalog
-
-
 #Append picks and events from db to Catalog 
 for i, events in enumerate(out_3):
     event=Event()    
@@ -95,11 +85,10 @@ for i, events in enumerate(out_3):
     db_catalog.append(event)
 
 
-
-#Only include picks for stations used -- omitting CM09 because noisy
+#Only include picks for stations used 
 all_picks=[]
 for event in db_catalog:
-    stations = ["CM01A", "CM02A", "CM03A", "CM04A", "CMO5A", "CM06A", "CM07A", "CM08A"]
+    stations = ['KCT', 'KMPB', 'KCR', 'KHMB', 'KCS', 'KCO', 'KMR', 'KPP']                
     event.picks = [pick for pick in event.picks if pick.waveform_id.station_code in stations]
     all_picks+= [(pick.waveform_id.station_code, pick.waveform_id.channel_code) for pick in event.picks]
 
@@ -108,97 +97,122 @@ for event in db_catalog:
     event.picks = [pick for pick in event.picks if (pick.waveform_id.station_code, pick.waveform_id.channel_code) in all_picks]
     new_catalog.append(event)
 
+# count number of picks for each event in catalog
+n_picks = [len(event.picks) for event in new_catalog] 
+
 #Save catalog
 new_catalog.write("DB_Event_Catalog" + '.xml', "QUAKEML")
-    #db_catalog = catalog_utils.filter_picks(db_catalog, top_n_picks=7)
 
-#new_catalog.plot(projection="local", water_fill_color="lightblue", label = None, color="date", title=("Templates"))
-
-## 2. LOAD CATALOG IF AVAILABLE 
-#cat=read_events("DB_Event_Catalog.xml")    
-
+# =============================================================================
+# ## 2. LOAD CATALOG IF AVAILABLE 
+# cat=read_events("DB_Event_Catalog.xml")    
+# =============================================================================
 
 ## 1. IMPORT WAVEFORMS FOR TEMPLATE 
 print("IMPORTING AND PREPROCESSING WAVEFORM STREAMS.")
-
-jday = []
-for event in new_catalog:
-    ot = event.origins[0].time
-    j = str(ot.julday)
-    jday.append(j)
-
-
-template_names=[]
-for i, days in enumerate(jday):
-    ot = new_catalog[i].origins[0].time
-    yr = (ot.year)
-    print(yr, days)
-    st = Stream()
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM01A/CM01A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM02A/CM02A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM03A/CM03A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM04A/CM04A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM05A/CM05A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM06A/CM06A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM07A/CM07A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
-    my_file = ('/auto/proj/Cascadia/data_nobackup/5E/CM08A/CM08A.5E.EHZ.%s.%s' % (yr, days))
-    if os.path.isfile(my_file):
-        st += read(my_file)
+jday = [event.origins[0].time.julday for event in new_catalog]
+yrs = [event.origins[0].time.year for event in new_catalog]
+yrjdays = zip(yrs, jday)
     
-    if st.count() > 0:
+# Handle directory level stuff
+# if dirs already exist ask to overwrite
+if os.path.isdir('Template_plots/'):
+    inp = input('Templates already exist. Do you want to overwrite? (y/n)...')
+    if inp == 'y':
+        shutil.rmtree('Template_plots')
+        shutil.rmtree('Templates_MSEED')
+    if inp == 'n':
+        sys.exit('Exiting code -- will not overwrite existing templates')
+# make dirs for templates & plots if they don't esist   
+if not os.path.isdir(os.getcwd() + '/Template_plots'):
+    os.mkdir('Template_plots')
+    os.mkdir('Templates_MSEED')
+   
+template_names = []
+for i, (yr, days) in enumerate(zip(yrs, jday)):
+    plt.close('all')
+    st = Stream()
+    print('\nworking on event ' + events_clust[i] + ' with %i picks' % n_picks[i])
+    
+    #perm NC stations    
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KCT/KCT.NC.HHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KMPB/KMPB.NC.HHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KCR/KCR.NC.EHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KHMB/KHMB.NC.HHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KCS/KCS.NC.EHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KCO/KCO.NC.EHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KMR/KMR.NC.HHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+    my_file = ('/auto/proj/Cascadia/data_nobackup/NC/KPP/KPP.NC.HHZ.%s.%s' % (yr, days))
+    if os.path.isfile(my_file):
+        st += read(my_file)
+   
+    if st.count() > 0: # need waveforms to continue
         std = Stream()
         for tr in st:
             num = tr.stats.npts
-            sta = tr.stats.station
-            samp = tr.stats.sampling_rate 
-            
+            samp = tr.stats.sampling_rate             
             if num >= (samp*86400)*.8:
                 std.append(tr)
+        
+        print('number of good waveforms ', std.count())
+        if std.count() < 3: # want 3 or more waveforms for templates
+            print('skipping event not enough good waveforms')
+            
+        else:         
+            std.sort(['starttime'])
+            std.merge(fill_value="interpolate")
+            st1=std.copy()
+            
+            start = UTCDateTime(year = yr, julday = days)
+            end = start + 86400
+            st_filter=st1.trim(starttime=start, endtime=end)
+        
+#            print('GENERATING TEMPLATE FOR ' + str(start) +   ' SAVING AS MINISEED FILES & PLOTS ARE SAVED TO FOLDER.')
+            # template matching
+            template = template_gen.from_meta_file(meta_file = new_catalog, st = st_filter,
+                                                   lowcut = 3, highcut = 10, filt_order = 4, samp_rate = 25,
+                                                   prepick = 0.15, length = 4.6, swin = 'P',
+                                                   parallel = True)
+            
+            if len(template[0]) < 3:
+                print('Skipping template -- %i picks & %i WF in template' % (n_picks[i], len(template[0])))
                 
-        std.sort(['starttime'])
-        std.merge(fill_value="interpolate")
-        print(st)
-        st1=std.copy()
-        mon = ot.month
-        day = ot.day
-        start = UTCDateTime(yr, mon, day, 0, 0, 0)
-        end = start + 86400
-        st_filter=st1.trim(starttime=start, endtime=end)
+            else:
+    #            stats = trace.Stats()
+                template[0].sort(['starttime'])
+                timestamp = template[0][0].stats.starttime
+                end_template = template[0][0].stats.endtime
+                
+                # make plots
+                stplot = std.copy()
+                stplot = stplot.trim(starttime = timestamp - 5, 
+                                     endtime= end_template + 5)
+#                stplot = stplot.detrend()
+#                stplot = stplot.resample(25)
+                stplot = stplot.filter('bandpass', freqmin= 3, freqmax = 10, corners = 4, zerophase = True)
+                pretty_template_plot(template[0], background = stplot, 
+                                     picks = new_catalog[i].picks,
+                                     save = True, savefile=os.path.join(os.getcwd() + "/Template_plots", "template_" + str(timestamp) + '-' +  str(events_clust[i]) + ".png"))
+                
+                template[0].write(os.getcwd() + '/Templates_MSEED/template_' + str(timestamp) + '-'+  str(events_clust[i]) +'.ms', format='MSEED')
+                template_names.append('template_' + str(timestamp) + '.ms')
+                st.clear()
+                std.clear()
+                st_filter.clear()
+                stplot.clear()
         
-        print("GENERATING TEMPLATES AND SAVING AS MINISEED FILES. PLOTS ARE SAVED TO FOLDER.")
-        template = template_gen.from_meta_file(meta_file = new_catalog, st = st_filter,
-                                               lowcut = 3, highcut = 10, filt_order = 4, samp_rate = 25,
-                                               prepick = 0.15, length = 4.5, swin = 'P')
-        
-        stats = trace.Stats()
-        timestamp = template[0][0].stats.starttime
-        end_template = template[0][0].stats.endtime
-        
-        # make plots
-        stplot = st_filter.copy()
-        stplot = stplot.trim(starttime = timestamp - 5, 
-                             endtime= end_template + 5)
-        stplot = stplot.filter('bandpass', freqmin= 3, freqmax = 10)
-        pretty_template_plot(template[0], background = stplot, 
-                             save = True, savefile=os.path.join(os.getcwd() + "/Template_plots", "template_" + str(timestamp) + ".png"))
-        
-        template[0].write(os.getcwd() + '/Templates_MSEED/template_' + str(timestamp) + '.ms', format='MSEED')
-        template_names.append('template_' + str(timestamp) + '.ms')
-        st.clear()
-
-
-
+print('Script took ', time.time() - init_time, ' s to complete.')
