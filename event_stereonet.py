@@ -8,10 +8,21 @@ Similar to make_focal_mechs.py but Object Oriented
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import mplstereonet
 from matplotlib.pyplot import cm
 from obspy.imaging.beachball import beachball, aux_plane
 plt.close('all')
+
+def find_matches(listlike, pattern):
+    """ 
+    looks through a list for matches like startswith* -- does not require wildcard
+    returns boolean - like mask
+    """
+    S = pd.Series(listlike)
+    mask = S.str.contains(pattern)
+    return mask
+    
 
 class event:
     
@@ -52,11 +63,15 @@ class event:
             trend_lst.append(trend)
             plunge_lst.append(plunge)
         
+        if type(pol[0]) == str:
+                b = pol == 'u'
+                pol = b.astype(int)
+                
         #Instances of Class
         self.az = np.array(az)
         self.toa = np.array(toa)
         self.pol = np.array(pol)
-        self.stn = stn
+        self.stn = np.array(stn)
         self.event_id = event_id
         self.strike = np.array(strike)
         self.dip = np.array(dip)
@@ -67,8 +82,31 @@ class event:
         self.aux_plane = aux_plane(self.strike, self.dip, self.rake)
         self.trend = np.asarray(trend_lst)
         self.plunge = np.asarray(plunge_lst)
-        
+    
+    
+    def reverse_pol(self, pattern):
+       """reverses the polarity of stations matching pattern"""
+       print(self.pol)
+       mask = find_matches(self.stn, pattern) #find matches to pattern
+       
+       polarities = pd.Series(self.pol, dtype = bool) #polarities as a Series
+       
+       polarities.loc[mask] = ~polarities #swap polarites of stations
+       polarities = polarities.astype(int)
+       
+       print(polarities)
+       
+       self.pol = polarities
+       
+       
+       
+       
+       
+       
+    
+    
     def beachball(self, color = 'gray'):
+        """makes obspy beachball"""
         beachball([self.strike, self.dip, self.rake], facecolor = color)
     
         
@@ -79,7 +117,7 @@ class event:
         down = 0 --- open circles
         """
 
-        fig = plt.figure(figsize = (12,6))
+        fig = plt.figure(figsize = (6,6))
         ax = fig.add_subplot(111, projection = 'stereonet')
         ax.grid()
         
@@ -93,16 +131,21 @@ class event:
         ax.line(self.plunge[down], self.trend[down], 
                 c = 'k', label = 'down', fillstyle = 'none')
         
+        
         #instances of class as booleans
         self.up = up
         self.down = down
                
         if self.event_id != None:
-            title_string = 'Event ID = ' + str(self.event_id[0])
+            title_string = 'Event ID = ' + str(self.event_id)
             ax.set_title(title_string, fontsize = 18, loc = 'left')
             
         if self.strike != None:
-            ax.plane(self.strike, self.dip, self.rake) #fault plane
-            ax.plane(self.aux_plane[0], self.aux_plane[1], self.aux_plane[2])
+            ax.plane(self.strike, self.dip, self.rake, color = 'black') #fault plane
+            ax.plane(self.aux_plane[0], self.aux_plane[1], self.aux_plane[2], color = 'black')
+            
+                              
+            
+            
             
 
