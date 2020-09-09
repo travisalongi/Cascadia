@@ -32,7 +32,7 @@ class event:
         is a container for event
         az = list type of azimuths
         toa = list type of take of angles
-        pol = first motion polarity (up = 1, down = 0)
+        pol = first motion polarity (up = 1, down = -1)
         stn = list of stations that should be same length of az, toa, and pol
         event_id = unique event id
         
@@ -52,9 +52,11 @@ class event:
                 if az[i] <= 180:
                     trend = az[i] + 180
                     plunge = toa[i] - 90
+                    # pol[i] = -pol[i]
                 else:
                     trend =  az[i] -180
                     plunge = toa[i] - 90
+                    # pol[i] = -pol[i]
                         
             else:
                 trend = az[i]
@@ -127,7 +129,7 @@ class event:
                 c = 'k', label = 'up')
     
         #plot down arrivals
-        down = self.pol == 0
+        down = self.pol == -1
         ax.line(self.plunge[down], self.trend[down], 
                 c = 'k', label = 'down', fillstyle = 'none')
         

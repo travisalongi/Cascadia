@@ -1,140 +1,1 @@
-"""
-Use dictionarys to plot first arrivals on stereoenets
-by, talongi
-2019-04-30
-"""
-
-import matplotlib.pyplot as plt
-import numpy as np
-import mplstereonet
-from matplotlib.pyplot import cm
-plt.close('all')
-
-"""convert az & toa to trend & plunge"""
-evid7174 = {'az': np.array([19, 109,237,243,196,150]),
-            'toa': np.array([145, 155, 151, 124, 136, 90]),
-            'pol': np.array([0,0,1,1,1,0])} #down = 0; up = 1
-
-evid1319 = {'az': np.array([39,88,239,203,199,182]),
-            'toa' : np.array([125,140,140,94,89,122]),
-            'pol' : np.array([0,0,1,0,0,1])}
-
-#evid1149 = {'az' : np.array([33,320,84,234,245,224,177,223,216,151,84,187]),
-#            'toa' : np.array([124,144,142,175,137,125,139,110,93,72,83,122]),
-#            'pol' : np.array([0,0,0,0,1,1,1,1,1,1,1,1])}
-
-evid2139 = {'az' : np.array([32,85,232,245,206]),
-            'toa' : np.array([125,143,174,137,94]),
-            'pol' : np.array([0,0,1,1,0])}
-
-evid6655 = {'az' : np.array([38,81,140]),
-            'toa' : np.array([119,134,83]),
-            'pol' : np.array([0,0,0])}
-
-evid2031 = {'az' : np.array([36,85,191,243,221,214,204]),
-            'toa' : np.array([125,141,177,140,127,95,100]),
-            'pol' : np.array([0,0,0,1,1,0,0])}
-
-evid7127 = {'az' : np.array([36,321,87,202,242,221,205]),
-            'toa' : np.array([124,145,140,175,137,124,92]),
-            'pol' : np.array([0,0,0,1,1,1,0])}
-
-evid6761 = {'az' : np.array([337,268,222,211,206]),
-            'toa' : np.array([164,130,92,93,87]),
-            'pol' : np.array([1,1,0,0,0])}
-
-evid1129 = {'az' : np.array([125, 96, 238, 84, 182, 187]),
-            'toa' : np.array([107,89,112,81,124,89]),
-            'pol' : np.array([1,1,1,1,1,0])}
-
-evid1155 = {'az' : np.array([125,238,84,183]),
-            'toa' : np.array([107,111,80,123]),
-            'pol' : np.array([1,1,1,1])}
-
-evid1236 = {'az' : np.array([200,235,85,183,142]),
-            'toa' : np.array([83,103,77,114,80]),
-            'pol' : np.array([1,1,1,1,0])}
-
-evids = {7174 : evid7174, 
-         1319 : evid1319,
-#         1149 : evid1149, #omit inconsistent with other events
-         2139 : evid2139,
-         6655 : evid6655,
-         2031 : evid2031,
-         7127 : evid7127,
-         6761 : evid6761,
-         1129 : evid1129,
-         1155 : evid1155,
-         1236 : evid1236}
-
-# do correction for azimuth and take off angle to trend and plunge for stereonet
-for k in evids.keys():
-    trend = []
-    plunge = []
-    evnt = evids[k]
-    
-    if len(evnt['toa']) != len(evnt['az']):
-        break
-    
-    for i in np.arange(len(evnt['toa'])):
-        if evnt['toa'][i] >= 90:
-            if evnt['az'][i] <= 180:
-                trend.append(evnt['az'][i] + 180)
-                plunge.append(evnt['toa'][i] - 90)
-            else:
-                trend.append(evnt['az'][i] - 180)
-                plunge.append(evnt['toa'][i] - 90)
-        else:
-            trend.append(evnt['az'][i])
-            plunge.append(90 - evnt['toa'][i])
-            
-        evnt['trend'] = np.asarray(trend)
-        evnt['plunge'] = np.asarray(plunge)
-        
-# make plot of all events
-fig = plt.figure(99, figsize=(18,10))
-ax = fig.add_subplot(111, projection = 'stereonet')
-color = iter(cm.rainbow(np.linspace(0,1, len(evids.keys()))))
-
-for k in evids.keys():
-    ev = evids[k]
-    c = next(color)
-    c = 'k'
-    # plot up arrivals
-    ax.line(ev['plunge'][ev['pol'] == 1], 
-            ev['trend'][ev['pol'] == 1], 
-            c = c, label = k)
-    
-    # plot down arrivals
-    ax.line(ev['plunge'][ev['pol'] == 0], 
-            ev['trend'][ev['pol'] == 0], 
-            c = c, label = k,
-            fillstyle = 'none')
-    ax.set_title('Composite Mechanism \n Using %d Events' % len(evids.keys()),
-                 fontsize = 18, loc = 'left')
-ax.grid()
-
-       
- # make individual plots
-color = iter(cm.rainbow(np.linspace(0,1, len(evids.keys()))))
-for k in evids.keys():
-    fig = plt.figure(k,figsize=(18,10))
-    ax = fig.add_subplot(111, projection = 'stereonet')
-    
-    ev = evids[k]
-#    c = next(color)
-    c = 'k'
-    ax.line(ev['plunge'][ev['pol'] == 1], 
-            ev['trend'][ev['pol'] == 1], 
-            c = c, label = k)
-    
-    ax.line(ev['plunge'][ev['pol'] == 0], 
-            ev['trend'][ev['pol'] == 0], 
-            c = c, label = k,
-            fillstyle = 'none')
-
-    title_string = 'Event ID = ' + str(k)
-    ax.set_title(title_string, fontsize = 18, loc = 'left')
-    ax.grid()
-
-   
+"""Make Focal Mech Plotsreads hash_df output file"""from obspy.imaging.beachball import beachballfrom obspy.core import UTCDateTimeimport pandas as pdimport numpy as npimport matplotlib.pyplot as pltplt.close('all')file = 'casc2.out' #hash_df solutionsfm_save_dir = '/Users/travisalongi/Cascadia/Figures/Focal_mechs/Run3/' #where to save mechscolumns = ['evid','yr', 'mon', 'day', 'hr', 'mn', 'sec',           'ev_type', 'mag', 'mag_type',            'lat', 'lon', 'depth',           'loc_qual', 'rms', 'xy_err', 'z_err', 'time_err',           'n_arr', 'n_p', 'n_s',           'strike', 'dip', 'rake',           'fp_uncert', 'aux_uncert',           'n_p_fm', 'pct_misfit',           'fm_quality', 'prob_fm_solution', 'stn_dist_ratio',           's/p_ratio', 'avg_sp_misfit', 'mult_flag']hash_df = pd.read_csv(file, sep = '\s+', names = columns)hash_df = hash_df.set_index('evid') #index by event id#%%# make obspy beachballs for all HASH solutionsplt.ioff()for index, row in hash_df.iterrows():    date = UTCDateTime(row.yr, row.mon, row.day, row.hr, row.mn)    save_file = str(row.name) + '-' + date.strftime('%Y%m%dT%H%M') + 'Z' + str(row.depth) + str(row.fm_quality)        # plot beach balls and save        beachball([row.strike, row.dip, row.rake], facecolor = 'k',              outfile = fm_save_dir + 'Obspy_beachballs/' + save_file + '.png')plt.ion()#format focal mech data for use in gmtzeros = np.zeros(len(hash_df)).astype(int)gmt = hash_df[['lon', 'lat', 'depth', 'strike', 'dip', 'rake', 'mag']]gmt['depth'] = gmt['depth']gmt = gmt.assign(dummy_lon =  zeros, dummy_lat = zeros, quality = hash_df.fm_quality)file_name = 'cluster_r3_fm_gmt.csv' #save filefm_dir = '/Users/travisalongi/Cascadia/Data_tables/Focal_mechs/'gmt.to_csv(fm_dir + file_name,           sep = ' ',           index = False,           header = False)#%% Plot arrivals on stereonet and fault planes on steroenetimport mplstereonetimport sys, glob# special import or object oriented code sys.path.insert(1, '/Users/travisalongi/Cascadia/Codes')import event_stereonet as myevents = glob.glob('evid*') #get all eventsevids = []for event in events:    evid = event.split('.')[0][-4:] #get evid from file name        hash_event = hash_df.loc[int(evid)] #get hash information    he = hash_event    ev_str = str(evid) +'_'+ str(he.yr) +'-'+ str(he.mon) +'-'+ str(he.day) +'Z'+ str(he.depth) +'_'+ str(he.fm_quality) + '.png'        event = pd.read_csv(event, sep = '\s+') #read data        #change polarity convention from HASH to my plotting script    # event.POL = event.POL.replace(-1,0)        e = my.event(az = event.AZ.values,                  toa = event.TOA.values,                  pol = event.POL.values,                 stn = event.STN.values,                 event_id = evid,                  strike = hash_event.strike,                  dip = hash_event.dip,                  rake = hash_event.rake)    # e.reverse_pol('CM') # reverse polarity of CM stations    e.fm_plot()    fig.savefig(fm_save_dir + 'Fm_planes/' + 'my_' + ev_str)        e.beachball()    fig.savefig(fm_save_dir + 'Fm_planes/' + 'obspy_'+ ev_str)    evids.append(int(evid))new_df = hash_df.loc[evids]# new_df.to_csv(fm_save_dir + 'Fm_planes/hash_info.csv', sep = ',')#%% this plots all hash_df planes & saves themfile2 = 'casc2.out2'f2 = open(file2)r = f2.read()events = r.split('\n\n\n')#supress plot popups# plt.ioff()strikes = []dips = []rakes = []for event in events:   lines = event.split('\n')[:]   event_strings = lines[0].split()      fig = plt.figure()   ax = fig.add_subplot(111, projection = 'stereonet')   title_string = event_strings[0] +'_'+ event_strings[1] +'_'+  event_strings[2] +'_'+ event_strings[-3]   ax.set_title(title_string)   for line in lines[1:]:       l = line.split()       strike = float(l[0])       dip = float(l[1])       rake = float(l[2])              strikes.append(strike)       dips.append(dip)       rakes.append(rake)              ax.plane(float(l[0]), float(l[1]), color = 'k', alpha = 0.5)   fig.savefig(fm_save_dir + '/')plt.ion()
